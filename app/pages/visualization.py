@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
 from app.db_manager import get_all_teilnehmer, get_tests_by_teilnehmer
-from app.utils.helper_functions import sort_dataframe_by_date, calculate_total_scores, format_date
+from app.utils.helper_functions import sort_dataframe_by_date, format_date
 
 # Cache die Teilnehmerliste, um wiederholte Datenbankabfragen zu vermeiden
 @st.cache_data
@@ -78,7 +78,7 @@ def plot_performance(df_tests, teilnehmer_name):
     return fig
 
 def main():
-    st.title("Datenvisualisierung der Testergebnisse")
+    st.header("Datenvisualisierung der Testergebnisse")
 
     # Abrufen der Teilnehmerliste
     df_teilnehmer = load_teilnehmer()
@@ -110,8 +110,10 @@ def main():
         # Erweiterte Filteroptionen
         st.subheader("Erweiterte Filteroptionen")
         with st.expander("Filter anwenden"):
-            start_date = st.date_input("Startdatum", df_tests['test_datum'].min())
-            end_date = st.date_input("Enddatum", df_tests['test_datum'].max())
+            min_date = df_tests['test_datum'].min()
+            max_date = df_tests['test_datum'].max()
+            start_date = st.date_input("Startdatum", pd.to_datetime(min_date))
+            end_date = st.date_input("Enddatum", pd.to_datetime(max_date))
 
             if start_date > end_date:
                 st.error("Das Startdatum darf nicht nach dem Enddatum liegen.")
@@ -146,6 +148,3 @@ def main():
     - **Interaktivität:** Bewegen Sie den Mauszeiger über die Datenpunkte, um detaillierte Informationen anzuzeigen.
     - **Filter:** Verwenden Sie die erweiterten Filteroptionen, um die Visualisierung auf einen bestimmten Zeitraum zu beschränken.
     """)
-
-if __name__ == "__main__":
-    main()
