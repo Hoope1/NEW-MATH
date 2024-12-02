@@ -1,230 +1,232 @@
 # app/pages/tests.py
 
 import streamlit as st
+from app.db_manager import add_test, get_tests_by_teilnehmer, update_test, delete_test, get_all_teilnehmer
+from app.utils.helper_functions import validate_points, calculate_total_scores, sort_dataframe_by_date, format_date
 import pandas as pd
 from datetime import datetime
-from app.db_manager import (
-    add_test,
-    get_tests_by_teilnehmer,
-    get_all_teilnehmer,
-    update_test,
-    delete_test
-)
-from app.utils.helper_functions import (
-    validate_points,
-    calculate_total_scores,
-    sort_dataframe_by_date,
-    format_date
-)
 
 def main():
-    st.title("Testdateneingabe und -verwaltung")
-
-    # Menüauswahl
-    menu = ["Neues Testergebnis hinzufügen", "Testergebnisse anzeigen"]
-    choice = st.sidebar.selectbox("Aktion auswählen", menu)
-
-    if choice == "Neues Testergebnis hinzufügen":
-        st.subheader("Neues Testergebnis hinzufügen")
-
-        # Abrufen der Teilnehmerliste
-        df_teilnehmer = get_all_teilnehmer()
-        if df_teilnehmer.empty:
-            st.warning("Es sind keine Teilnehmer vorhanden. Bitte fügen Sie zuerst Teilnehmer hinzu.")
-            return
-
-        # Auswahl des Teilnehmers
-        teilnehmer_namen = df_teilnehmer['name'].tolist()
-        selected_name = st.selectbox("Teilnehmer auswählen", teilnehmer_namen)
-        teilnehmer_data = df_teilnehmer[df_teilnehmer['name'] == selected_name].iloc[0]
-        teilnehmer_id = teilnehmer_data['teilnehmer_id']
-
-        # Eingabeformular für Testergebnisse
-        with st.form(key='add_test_form'):
-            test_datum = st.date_input("Testdatum", datetime.today())
-
-            st.markdown("#### Punkteingabe pro Kategorie")
-            textaufgaben_erreicht = st.number_input("Erreichte Punkte - Textaufgaben", min_value=0.0, max_value=100.0, value=0.0)
-            textaufgaben_max = st.number_input("Maximale Punkte - Textaufgaben", min_value=0.0, max_value=100.0, value=0.0)
-
-            raumvorstellung_erreicht = st.number_input("Erreichte Punkte - Raumvorstellung", min_value=0.0, max_value=100.0, value=0.0)
-            raumvorstellung_max = st.number_input("Maximale Punkte - Raumvorstellung", min_value=0.0, max_value=100.0, value=0.0)
-
-            grundrechenarten_erreicht = st.number_input("Erreichte Punkte - Grundrechenarten", min_value=0.0, max_value=100.0, value=0.0)
-            grundrechenarten_max = st.number_input("Maximale Punkte - Grundrechenarten", min_value=0.0, max_value=100.0, value=0.0)
-
-            zahlenraum_erreicht = st.number_input("Erreichte Punkte - Zahlenraum", min_value=0.0, max_value=100.0, value=0.0)
-            zahlenraum_max = st.number_input("Maximale Punkte - Zahlenraum", min_value=0.0, max_value=100.0, value=0.0)
-
-            gleichungen_erreicht = st.number_input("Erreichte Punkte - Gleichungen", min_value=0.0, max_value=100.0, value=0.0)
-            gleichungen_max = st.number_input("Maximale Punkte - Gleichungen", min_value=0.0, max_value=100.0, value=0.0)
-
-            brueche_erreicht = st.number_input("Erreichte Punkte - Brüche", min_value=0.0, max_value=100.0, value=0.0)
-            brueche_max = st.number_input("Maximale Punkte - Brüche", min_value=0.0, max_value=100.0, value=0.0)
-
-            submit_button = st.form_submit_button(label="Testergebnis hinzufügen")
-
-        if submit_button:
-            # Punkte validieren
-            points_dict = {
-                'textaufgaben': {'erreicht': textaufgaben_erreicht, 'max': textaufgaben_max},
-                'raumvorstellung': {'erreicht': raumvorstellung_erreicht, 'max': raumvorstellung_max},
-                'grundrechenarten': {'erreicht': grundrechenarten_erreicht, 'max': grundrechenarten_max},
-                'zahlenraum': {'erreicht': zahlenraum_erreicht, 'max': zahlenraum_max},
-                'gleichungen': {'erreicht': gleichungen_erreicht, 'max': gleichungen_max},
-                'brueche': {'erreicht': brueche_erreicht, 'max': brueche_max}
-            }
-
-            if not validate_points({k: v['erreicht'] for k, v in points_dict.items()}):
-                st.error("Bitte geben Sie gültige erreichte Punkte ein.")
-            elif not validate_points({k: v['max'] for k, v in points_dict.items()}):
-                st.error("Bitte geben Sie gültige maximale Punkte ein.")
-            else:
-                # Gesamtsumme der maximalen Punkte prüfen
-                gesamt_max_punkte = sum([v['max'] for v in points_dict.values()])
-                if gesamt_max_punkte != 100:
-                    st.error("Die Gesamtsumme der maximalen Punkte muss genau 100 betragen.")
-                else:
-                    # Gesamtpunkte und Gesamtprozent berechnen
-                    gesamt_erreichte_punkte, _, gesamt_prozent = calculate_total_scores(points_dict)
-
-                    # Testergebnis speichern
-                    add_test(
-                        teilnehmer_id=teilnehmer_id,
-                        test_datum=test_datum.strftime("%Y-%m-%d"),
-                        textaufgaben_erreichte_punkte=textaufgaben_erreicht,
-                        textaufgaben_max_punkte=textaufgaben_max,
-                        raumvorstellung_erreichte_punkte=raumvorstellung_erreicht,
-                        raumvorstellung_max_punkte=raumvorstellung_max,
-                        grundrechenarten_erreichte_punkte=grundrechenarten_erreicht,
-                        grundrechenarten_max_punkte=grundrechenarten_max,
-                        zahlenraum_erreichte_punkte=zahlenraum_erreicht,
-                        zahlenraum_max_punkte=zahlenraum_max,
-                        gleichungen_erreichte_punkte=gleichungen_erreicht,
-                        gleichungen_max_punkte=gleichungen_max,
-                        brueche_erreichte_punkte=brueche_erreicht,
-                        brueche_max_punkte=brueche_max,
-                        gesamt_erreichte_punkte=gesamt_erreichte_punkte,
-                        gesamt_max_punkte=gesamt_max_punkte,
-                        gesamt_prozent=gesamt_prozent
-                    )
-                    st.success("Das Testergebnis wurde erfolgreich hinzugefügt.")
-
-    elif choice == "Testergebnisse anzeigen":
-        st.subheader("Testergebnisse anzeigen")
-
-        # Abrufen der Teilnehmerliste
-        df_teilnehmer = get_all_teilnehmer()
-        if df_teilnehmer.empty:
-            st.warning("Es sind keine Teilnehmer vorhanden.")
-            return
-
-        # Auswahl des Teilnehmers
-        teilnehmer_namen = df_teilnehmer['name'].tolist()
-        selected_name = st.selectbox("Teilnehmer auswählen", teilnehmer_namen)
-        teilnehmer_data = df_teilnehmer[df_teilnehmer['name'] == selected_name].iloc[0]
-        teilnehmer_id = teilnehmer_data['teilnehmer_id']
-
-        # Abrufen der Testergebnisse
-        df_tests = get_tests_by_teilnehmer(teilnehmer_id)
-
-        if df_tests.empty:
-            st.info("Keine Testergebnisse für diesen Teilnehmer vorhanden.")
+    st.header("Testdateneingabe und -verwaltung")
+    
+    # Tab-Layout: Übersicht, Test hinzufügen, Test bearbeiten/löschen
+    tabs = st.tabs(["Übersicht", "Test hinzufügen", "Test bearbeiten/löschen"])
+    
+    with tabs[0]:
+        st.subheader("Alle Tests")
+        teilnehmer = get_all_teilnehmer()
+        if teilnehmer.empty:
+            st.info("Es sind keine Teilnehmer vorhanden. Bitte fügen Sie zuerst Teilnehmer hinzu.")
         else:
-            # Testergebnisse anzeigen
-            df_tests = sort_dataframe_by_date(df_tests, 'test_datum')
-            df_tests_display = df_tests[['test_id', 'test_datum', 'gesamt_erreichte_punkte', 'gesamt_max_punkte', 'gesamt_prozent']]
-            df_tests_display['test_datum'] = pd.to_datetime(df_tests_display['test_datum']).dt.strftime('%d.%m.%Y')
-            st.dataframe(df_tests_display.set_index('test_id'))
-
-            # Auswahl eines Tests zum Bearbeiten
-            test_ids = df_tests['test_id'].tolist()
-            selected_test_id = st.selectbox("Testergebnis zum Bearbeiten auswählen (Test-ID)", test_ids)
-            test_data = df_tests[df_tests['test_id'] == selected_test_id].iloc[0]
-
-            edit = st.button("Testergebnis bearbeiten")
-            delete = st.button("Testergebnis löschen")
-
-            if edit:
-                st.subheader(f"Testergebnis vom {format_date(test_data['test_datum'])} bearbeiten")
-
-                # Bearbeitungsformular
-                with st.form(key='edit_test_form'):
-                    test_datum = st.date_input("Testdatum", datetime.strptime(test_data['test_datum'], '%Y-%m-%d'))
-
-                    st.markdown("#### Punkteingabe pro Kategorie")
-                    textaufgaben_erreicht = st.number_input("Erreichte Punkte - Textaufgaben", min_value=0.0, max_value=100.0, value=test_data['textaufgaben_erreichte_punkte'])
-                    textaufgaben_max = st.number_input("Maximale Punkte - Textaufgaben", min_value=0.0, max_value=100.0, value=test_data['textaufgaben_max_punkte'])
-
-                    raumvorstellung_erreicht = st.number_input("Erreichte Punkte - Raumvorstellung", min_value=0.0, max_value=100.0, value=test_data['raumvorstellung_erreichte_punkte'])
-                    raumvorstellung_max = st.number_input("Maximale Punkte - Raumvorstellung", min_value=0.0, max_value=100.0, value=test_data['raumvorstellung_max_punkte'])
-
-                    grundrechenarten_erreicht = st.number_input("Erreichte Punkte - Grundrechenarten", min_value=0.0, max_value=100.0, value=test_data['grundrechenarten_erreichte_punkte'])
-                    grundrechenarten_max = st.number_input("Maximale Punkte - Grundrechenarten", min_value=0.0, max_value=100.0, value=test_data['grundrechenarten_max_punkte'])
-
-                    zahlenraum_erreicht = st.number_input("Erreichte Punkte - Zahlenraum", min_value=0.0, max_value=100.0, value=test_data['zahlenraum_erreichte_punkte'])
-                    zahlenraum_max = st.number_input("Maximale Punkte - Zahlenraum", min_value=0.0, max_value=100.0, value=test_data['zahlenraum_max_punkte'])
-
-                    gleichungen_erreicht = st.number_input("Erreichte Punkte - Gleichungen", min_value=0.0, max_value=100.0, value=test_data['gleichungen_erreichte_punkte'])
-                    gleichungen_max = st.number_input("Maximale Punkte - Gleichungen", min_value=0.0, max_value=100.0, value=test_data['gleichungen_max_punkte'])
-
-                    brueche_erreicht = st.number_input("Erreichte Punkte - Brüche", min_value=0.0, max_value=100.0, value=test_data['brueche_erreichte_punkte'])
-                    brueche_max = st.number_input("Maximale Punkte - Brüche", min_value=0.0, max_value=100.0, value=test_data['brueche_max_punkte'])
-
-                    update_button = st.form_submit_button(label="Änderungen speichern")
-
-                if update_button:
-                    # Punkte validieren
-                    points_dict = {
-                        'textaufgaben': {'erreicht': textaufgaben_erreicht, 'max': textaufgaben_max},
-                        'raumvorstellung': {'erreicht': raumvorstellung_erreicht, 'max': raumvorstellung_max},
-                        'grundrechenarten': {'erreicht': grundrechenarten_erreicht, 'max': grundrechenarten_max},
-                        'zahlenraum': {'erreicht': zahlenraum_erreicht, 'max': zahlenraum_max},
-                        'gleichungen': {'erreicht': gleichungen_erreicht, 'max': gleichungen_max},
-                        'brueche': {'erreicht': brueche_erreicht, 'max': brueche_max}
+            selected_id = st.selectbox("Teilnehmer auswählen", teilnehmer['teilnehmer_id'], format_func=lambda x: teilnehmer[teilnehmer['teilnehmer_id'] == x]['name'].values[0])
+            df_tests = get_tests_by_teilnehmer(selected_id)
+            if df_tests.empty:
+                st.info("Keine Testergebnisse für diesen Teilnehmer vorhanden.")
+            else:
+                df_display = df_tests.copy()
+                df_display['test_datum'] = df_display['test_datum'].apply(format_date)
+                st.dataframe(df_display[['test_id', 'test_datum', 'gesamt_erreichte_punkte', 'gesamt_max_punkte', 'gesamt_prozent']].set_index('test_id'))
+    
+    with tabs[1]:
+        st.subheader("Neuen Test hinzufügen")
+        teilnehmer = get_all_teilnehmer()
+        if teilnehmer.empty:
+            st.info("Es sind keine Teilnehmer vorhanden. Bitte fügen Sie zuerst Teilnehmer hinzu.")
+        else:
+            selected_id = st.selectbox("Teilnehmer auswählen", teilnehmer['teilnehmer_id'], format_func=lambda x: teilnehmer[teilnehmer['teilnehmer_id'] == x]['name'].values[0])
+            with st.form("add_test_form"):
+                test_datum = st.date_input("Testdatum")
+                textaufgaben_erreichte_punkte = st.number_input("Erreichte Punkte - Textaufgaben", min_value=0.0, max_value=100.0, step=0.1)
+                textaufgaben_max_punkte = st.number_input("Maximale Punkte - Textaufgaben", min_value=0.0, max_value=100.0, step=0.1)
+                
+                raumvorstellung_erreichte_punkte = st.number_input("Erreichte Punkte - Raumvorstellung", min_value=0.0, max_value=100.0, step=0.1)
+                raumvorstellung_max_punkte = st.number_input("Maximale Punkte - Raumvorstellung", min_value=0.0, max_value=100.0, step=0.1)
+                
+                grundrechenarten_erreichte_punkte = st.number_input("Erreichte Punkte - Grundrechenarten", min_value=0.0, max_value=100.0, step=0.1)
+                grundrechenarten_max_punkte = st.number_input("Maximale Punkte - Grundrechenarten", min_value=0.0, max_value=100.0, step=0.1)
+                
+                zahlenraum_erreichte_punkte = st.number_input("Erreichte Punkte - Zahlenraum", min_value=0.0, max_value=100.0, step=0.1)
+                zahlenraum_max_punkte = st.number_input("Maximale Punkte - Zahlenraum", min_value=0.0, max_value=100.0, step=0.1)
+                
+                gleichungen_erreichte_punkte = st.number_input("Erreichte Punkte - Gleichungen", min_value=0.0, max_value=100.0, step=0.1)
+                gleichungen_max_punkte = st.number_input("Maximale Punkte - Gleichungen", min_value=0.0, max_value=100.0, step=0.1)
+                
+                brueche_erreichte_punkte = st.number_input("Erreichte Punkte - Brüche", min_value=0.0, max_value=100.0, step=0.1)
+                brueche_max_punkte = st.number_input("Maximale Punkte - Brüche", min_value=0.0, max_value=100.0, step=0.1)
+                
+                submitted = st.form_submit_button("Test hinzufügen")
+                if submitted:
+                    points_dict_erreicht = {
+                        'textaufgaben': textaufgaben_erreichte_punkte,
+                        'raumvorstellung': raumvorstellung_erreichte_punkte,
+                        'grundrechenarten': grundrechenarten_erreichte_punkte,
+                        'zahlenraum': zahlenraum_erreichte_punkte,
+                        'gleichungen': gleichungen_erreichte_punkte,
+                        'brueche': brueche_erreichte_punkte
                     }
-
-                    if not validate_points({k: v['erreicht'] for k, v in points_dict.items()}):
+                    
+                    points_dict_max = {
+                        'textaufgaben': textaufgaben_max_punkte,
+                        'raumvorstellung': raumvorstellung_max_punkte,
+                        'grundrechenarten': grundrechenarten_max_punkte,
+                        'zahlenraum': zahlenraum_max_punkte,
+                        'gleichungen': gleichungen_max_punkte,
+                        'brueche': brueche_max_punkte
+                    }
+                    
+                    if not validate_points(points_dict_erreicht):
                         st.error("Bitte geben Sie gültige erreichte Punkte ein.")
-                    elif not validate_points({k: v['max'] for k, v in points_dict.items()}):
+                    elif not validate_points(points_dict_max):
                         st.error("Bitte geben Sie gültige maximale Punkte ein.")
                     else:
                         # Gesamtsumme der maximalen Punkte prüfen
-                        gesamt_max_punkte = sum([v['max'] for v in points_dict.values()])
+                        gesamt_max_punkte = sum(points_dict_max.values())
                         if gesamt_max_punkte != 100:
                             st.error("Die Gesamtsumme der maximalen Punkte muss genau 100 betragen.")
                         else:
-                            # Gesamtpunkte und Gesamtprozent berechnen
-                            gesamt_erreichte_punkte, _, gesamt_prozent = calculate_total_scores(points_dict)
+                            # Gesamtpunkte und Gesamtprozentsatz berechnen
+                            points_dict = {
+                                'textaufgaben': {'erreicht': textaufgaben_erreichte_punkte, 'max': textaufgaben_max_punkte},
+                                'raumvorstellung': {'erreicht': raumvorstellung_erreichte_punkte, 'max': raumvorstellung_max_punkte},
+                                'grundrechenarten': {'erreicht': grundrechenarten_erreichte_punkte, 'max': grundrechenarten_max_punkte},
+                                'zahlenraum': {'erreicht': zahlenraum_erreichte_punkte, 'max': zahlenraum_max_punkte},
+                                'gleichungen': {'erreicht': gleichungen_erreichte_punkte, 'max': gleichungen_max_punkte},
+                                'brueche': {'erreicht': brueche_erreichte_punkte, 'max': brueche_max_punkte}
+                            }
+                            
+                            gesamt_erreichte_punkte, gesamt_max_punkte, gesamt_prozent = calculate_total_scores(points_dict)
+                            
+                            try:
+                                add_test(
+                                    teilnehmer_id=selected_id,
+                                    test_datum=test_datum.strftime('%Y-%m-%d'),
+                                    textaufgaben_erreichte_punkte=textaufgaben_erreichte_punkte,
+                                    textaufgaben_max_punkte=textaufgaben_max_punkte,
+                                    raumvorstellung_erreichte_punkte=raumvorstellung_erreichte_punkte,
+                                    raumvorstellung_max_punkte=raumvorstellung_max_punkte,
+                                    grundrechenarten_erreichte_punkte=grundrechenarten_erreichte_punkte,
+                                    grundrechenarten_max_punkte=grundrechenarten_max_punkte,
+                                    zahlenraum_erreichte_punkte=zahlenraum_erreichte_punkte,
+                                    zahlenraum_max_punkte=zahlenraum_max_punkte,
+                                    gleichungen_erreichte_punkte=gleichungen_erreichte_punkte,
+                                    gleichungen_max_punkte=gleichungen_max_punkte,
+                                    brueche_erreichte_punkte=brueche_erreichte_punkte,
+                                    brueche_max_punkte=brueche_max_punkte,
+                                    gesamt_erreichte_punkte=gesamt_erreichte_punkte,
+                                    gesamt_max_punkte=gesamt_max_punkte,
+                                    gesamt_prozent=gesamt_prozent
+                                )
+                                st.success("Test erfolgreich hinzugefügt.")
+                            except Exception as e:
+                                st.error(f"Fehler beim Hinzufügen des Tests: {e}")
 
-                            # Aktualisieren des Testergebnisses
-                            update_test(
-                                test_id=selected_test_id,
-                                test_datum=test_datum.strftime('%Y-%m-%d'),
-                                textaufgaben_erreichte_punkte=textaufgaben_erreicht,
-                                textaufgaben_max_punkte=textaufgaben_max,
-                                raumvorstellung_erreichte_punkte=raumvorstellung_erreicht,
-                                raumvorstellung_max_punkte=raumvorstellung_max,
-                                grundrechenarten_erreichte_punkte=grundrechenarten_erreicht,
-                                grundrechenarten_max_punkte=grundrechenarten_max,
-                                zahlenraum_erreichte_punkte=zahlenraum_erreicht,
-                                zahlenraum_max_punkte=zahlenraum_max,
-                                gleichungen_erreichte_punkte=gleichungen_erreicht,
-                                gleichungen_max_punkte=gleichungen_max,
-                                brueche_erreichte_punkte=brueche_erreicht,
-                                brueche_max_punkte=brueche_max,
-                                gesamt_erreichte_punkte=gesamt_erreichte_punkte,
-                                gesamt_max_punkte=gesamt_max_punkte,
-                                gesamt_prozent=gesamt_prozent
-                            )
-                            st.success("Das Testergebnis wurde erfolgreich aktualisiert.")
-
-            if delete:
-                # Bestätigung vor dem Löschen
-                confirm = st.warning("Möchten Sie dieses Testergebnis wirklich löschen?")
-                if st.button("Ja, löschen"):
-                    delete_test(test_id=selected_test_id)
-                    st.success("Das Testergebnis wurde erfolgreich gelöscht.")
-
-if __name__ == "__main__":
-    main()
+    with tabs[2]:
+        st.subheader("Test bearbeiten oder löschen")
+        teilnehmer = get_all_teilnehmer()
+        if teilnehmer.empty:
+            st.info("Es sind keine Teilnehmer vorhanden. Bitte fügen Sie zuerst Teilnehmer hinzu.")
+        else:
+            selected_id = st.selectbox("Teilnehmer auswählen", teilnehmer['teilnehmer_id'], format_func=lambda x: teilnehmer[teilnehmer['teilnehmer_id'] == x]['name'].values[0])
+            df_tests = get_tests_by_teilnehmer(selected_id)
+            if df_tests.empty:
+                st.info("Keine Testergebnisse für diesen Teilnehmer vorhanden.")
+            else:
+                test_ids = df_tests['test_id'].tolist()
+                selected_test_id = st.selectbox("Test auswählen", test_ids)
+                selected_test = df_tests[df_tests['test_id'] == selected_test_id].iloc[0]
+                
+                st.write(f"**Test-ID:** {selected_test_id}")
+                with st.expander("Testdaten bearbeiten"):
+                    with st.form("edit_test_form"):
+                        test_datum = st.date_input("Testdatum", value=pd.to_datetime(selected_test['test_datum']))
+                        textaufgaben_erreichte_punkte = st.number_input("Erreichte Punkte - Textaufgaben", min_value=0.0, max_value=100.0, value=selected_test['textaufgaben_erreichte_punkte'], step=0.1)
+                        textaufgaben_max_punkte = st.number_input("Maximale Punkte - Textaufgaben", min_value=0.0, max_value=100.0, value=selected_test['textaufgaben_max_punkte'], step=0.1)
+                        
+                        raumvorstellung_erreichte_punkte = st.number_input("Erreichte Punkte - Raumvorstellung", min_value=0.0, max_value=100.0, value=selected_test['raumvorstellung_erreichte_punkte'], step=0.1)
+                        raumvorstellung_max_punkte = st.number_input("Maximale Punkte - Raumvorstellung", min_value=0.0, max_value=100.0, value=selected_test['raumvorstellung_max_punkte'], step=0.1)
+                        
+                        grundrechenarten_erreichte_punkte = st.number_input("Erreichte Punkte - Grundrechenarten", min_value=0.0, max_value=100.0, value=selected_test['grundrechenarten_erreichte_punkte'], step=0.1)
+                        grundrechenarten_max_punkte = st.number_input("Maximale Punkte - Grundrechenarten", min_value=0.0, max_value=100.0, value=selected_test['grundrechenarten_max_punkte'], step=0.1)
+                        
+                        zahlenraum_erreichte_punkte = st.number_input("Erreichte Punkte - Zahlenraum", min_value=0.0, max_value=100.0, value=selected_test['zahlenraum_erreichte_punkte'], step=0.1)
+                        zahlenraum_max_punkte = st.number_input("Maximale Punkte - Zahlenraum", min_value=0.0, max_value=100.0, value=selected_test['zahlenraum_max_punkte'], step=0.1)
+                        
+                        gleichungen_erreichte_punkte = st.number_input("Erreichte Punkte - Gleichungen", min_value=0.0, max_value=100.0, value=selected_test['gleichungen_erreichte_punkte'], step=0.1)
+                        gleichungen_max_punkte = st.number_input("Maximale Punkte - Gleichungen", min_value=0.0, max_value=100.0, value=selected_test['gleichungen_max_punkte'], step=0.1)
+                        
+                        brueche_erreichte_punkte = st.number_input("Erreichte Punkte - Brüche", min_value=0.0, max_value=100.0, value=selected_test['brueche_erreichte_punkte'], step=0.1)
+                        brueche_max_punkte = st.number_input("Maximale Punkte - Brüche", min_value=0.0, max_value=100.0, value=selected_test['brueche_max_punkte'], step=0.1)
+                        
+                        submitted = st.form_submit_button("Test aktualisieren")
+                        if submitted:
+                            points_dict_erreicht = {
+                                'textaufgaben': textaufgaben_erreichte_punkte,
+                                'raumvorstellung': raumvorstellung_erreichte_punkte,
+                                'grundrechenarten': grundrechenarten_erreichte_punkte,
+                                'zahlenraum': zahlenraum_erreichte_punkte,
+                                'gleichungen': gleichungen_erreichte_punkte,
+                                'brueche': brueche_erreichte_punkte
+                            }
+                            
+                            points_dict_max = {
+                                'textaufgaben': textaufgaben_max_punkte,
+                                'raumvorstellung': raumvorstellung_max_punkte,
+                                'grundrechenarten': grundrechenarten_max_punkte,
+                                'zahlenraum': zahlenraum_max_punkte,
+                                'gleichungen': gleichungen_max_punkte,
+                                'brueche': brueche_max_punkte
+                            }
+                            
+                            if not validate_points(points_dict_erreicht):
+                                st.error("Bitte geben Sie gültige erreichte Punkte ein.")
+                            elif not validate_points(points_dict_max):
+                                st.error("Bitte geben Sie gültige maximale Punkte ein.")
+                            else:
+                                # Gesamtsumme der maximalen Punkte prüfen
+                                gesamt_max_punkte = sum(points_dict_max.values())
+                                if gesamt_max_punkte != 100:
+                                    st.error("Die Gesamtsumme der maximalen Punkte muss genau 100 betragen.")
+                                else:
+                                    # Gesamtpunkte und Gesamtprozentsatz berechnen
+                                    points_dict = {
+                                        'textaufgaben': {'erreicht': textaufgaben_erreichte_punkte, 'max': textaufgaben_max_punkte},
+                                        'raumvorstellung': {'erreicht': raumvorstellung_erreichte_punkte, 'max': raumvorstellung_max_punkte},
+                                        'grundrechenarten': {'erreicht': grundrechenarten_erreichte_punkte, 'max': grundrechenarten_max_punkte},
+                                        'zahlenraum': {'erreicht': zahlenraum_erreichte_punkte, 'max': zahlenraum_max_punkte},
+                                        'gleichungen': {'erreicht': gleichungen_erreichte_punkte, 'max': gleichungen_max_punkte},
+                                        'brueche': {'erreicht': brueche_erreichte_punkte, 'max': brueche_max_punkte}
+                                    }
+                                    
+                                    gesamt_erreichte_punkte, gesamt_max_punkte, gesamt_prozent = calculate_total_scores(points_dict)
+                                    
+                                    try:
+                                        update_test(
+                                            test_id=selected_test_id,
+                                            test_datum=test_datum.strftime('%Y-%m-%d'),
+                                            textaufgaben_erreichte_punkte=textaufgaben_erreichte_punkte,
+                                            textaufgaben_max_punkte=textaufgaben_max_punkte,
+                                            raumvorstellung_erreichte_punkte=raumvorstellung_erreichte_punkte,
+                                            raumvorstellung_max_punkte=raumvorstellung_max_punkte,
+                                            grundrechenarten_erreichte_punkte=grundrechenarten_erreichte_punkte,
+                                            grundrechenarten_max_punkte=grundrechenarten_max_punkte,
+                                            zahlenraum_erreichte_punkte=zahlenraum_erreichte_punkte,
+                                            zahlenraum_max_punkte=zahlenraum_max_punkte,
+                                            gleichungen_erreichte_punkte=gleichungen_erreichte_punkte,
+                                            gleichungen_max_punkte=gleichungen_max_punkte,
+                                            brueche_erreichte_punkte=brueche_erreichte_punkte,
+                                            brueche_max_punkte=brueche_max_punkte,
+                                            gesamt_erreichte_punkte=gesamt_erreichte_punkte,
+                                            gesamt_max_punkte=gesamt_max_punkte,
+                                            gesamt_prozent=gesamt_prozent
+                                        )
+                                        st.success("Test erfolgreich aktualisiert.")
+                                    except Exception as e:
+                                        st.error(f"Fehler beim Aktualisieren des Tests: {e}")
+                
+                with st.expander("Test löschen"):
+                    if st.button("Test löschen"):
+                        try:
+                            delete_test(selected_test_id)
+                            st.success("Test erfolgreich gelöscht.")
+                        except Exception as e:
+                            st.error(f"Fehler beim Löschen des Tests: {e}")
