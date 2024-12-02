@@ -10,13 +10,7 @@ from app.utils.helper_functions import format_date, sort_dataframe_by_date
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from openpyxl import Workbook
-from PyPDF2 import PdfFileReader, PdfFileWriter
 import tempfile
-
-# Cache die Teilnehmerliste, um wiederholte Datenbankabfragen zu vermeiden
-@st.cache_data
-def load_teilnehmer():
-    return get_all_teilnehmer()
 
 def create_pdf_report(teilnehmer_data, df_tests, avg_last_two):
     """
@@ -112,14 +106,10 @@ def create_excel_report(teilnehmer_data, df_tests, avg_last_two):
     return excel_bytes
 
 def main():
-    st.title("Berichterstellung")
-
-    # Pfad für temporäre Berichte (nicht erforderlich in Streamlit Cloud, Nutzung von Bytes)
-    # REPORT_PATH = Path('data/reports')
-    # REPORT_PATH.mkdir(parents=True, exist_ok=True)
-
+    st.header("Berichterstellung")
+    
     # Abrufen der Teilnehmerliste
-    df_teilnehmer = load_teilnehmer()
+    df_teilnehmer = get_all_teilnehmer()
     if df_teilnehmer.empty:
         st.warning("Es sind keine Teilnehmer vorhanden. Bitte fügen Sie zuerst Teilnehmer hinzu.")
         return
@@ -153,31 +143,37 @@ def main():
     col1, col2 = st.columns(2)
     with col1:
         if st.button("PDF-Bericht erstellen"):
-            pdf_bytes = create_pdf_report(teilnehmer_data, df_tests, avg_last_two)
-            st.success("PDF-Bericht wurde erstellt.")
-            st.download_button(
-                label="PDF herunterladen",
-                data=pdf_bytes,
-                file_name=f"{selected_name}_Bericht.pdf",
-                mime="application/pdf"
-            )
+            try:
+                pdf_bytes = create_pdf_report(teilnehmer_data, df_tests, avg_last_two)
+                st.success("PDF-Bericht wurde erstellt.")
+                st.download_button(
+                    label="PDF herunterladen",
+                    data=pdf_bytes,
+                    file_name=f"{selected_name}_Bericht.pdf",
+                    mime="application/pdf"
+                )
+            except Exception as e:
+                st.error(f"Fehler beim Erstellen des PDF-Berichts: {e}")
     with col2:
         if st.button("Excel-Bericht erstellen"):
-            excel_bytes = create_excel_report(teilnehmer_data, df_tests, avg_last_two)
-            st.success("Excel-Bericht wurde erstellt.")
-            st.download_button(
-                label="Excel herunterladen",
-                data=excel_bytes,
-                file_name=f"{selected_name}_Bericht.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            try:
+                excel_bytes = create_excel_report(teilnehmer_data, df_tests, avg_last_two)
+                st.success("Excel-Bericht wurde erstellt.")
+                st.download_button(
+                    label="Excel herunterladen",
+                    data=excel_bytes,
+                    file_name=f"{selected_name}_Bericht.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            except Exception as e:
+                st.error(f"Fehler beim Erstellen des Excel-Berichts: {e}")
 
     st.markdown("---")
 
     # Anzeige der Testergebnisse im Detail
     st.subheader("Testergebnisse Übersicht")
     df_tests_display = df_tests.copy()
-    df_tests_display['test_datum'] = pd.to_datetime(df_tests_display['test_datum']).dt.strftime('%d.%m.%Y')
+    df_tests_display['test_datum'] = df_tests_display['test_datum'].apply(format_date)
     st.dataframe(df_tests_display[['test_datum', 'gesamt_erreichte_punkte', 'gesamt_max_punkte', 'gesamt_prozent']].set_index('test_datum'))
 
     st.markdown("---")
@@ -190,5 +186,3 @@ def main():
     - **Download:** Nach der Erstellung können die Berichte direkt heruntergeladen werden.
     """)
 
-if __name__ == "__main__":
-    main()
