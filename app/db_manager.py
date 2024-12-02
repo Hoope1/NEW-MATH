@@ -9,7 +9,11 @@ DB_PATH = Path('data/database.db')
 
 # Initialisierung der Datenbank
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
+    # Sicherstellen, dass das Datenverzeichnis existiert
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Verbindung zur SQLite-Datenbank herstellen (Pfad als String)
+    conn = sqlite3.connect(str(DB_PATH))
     cursor = conn.cursor()
     
     # Tabelle für Teilnehmer erstellen
@@ -56,7 +60,7 @@ def init_db():
 
 # Funktion zum Hinzufügen eines neuen Teilnehmers
 def add_teilnehmer(name, sv_nummer, geschlecht, eintrittsdatum, austrittsdatum, berufsbezeichnung, status):
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(str(DB_PATH))
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO teilnehmer (name, sv_nummer, geschlecht, eintrittsdatum, austrittsdatum, berufsbezeichnung, status)
@@ -67,14 +71,14 @@ def add_teilnehmer(name, sv_nummer, geschlecht, eintrittsdatum, austrittsdatum, 
 
 # Funktion zum Abrufen aller Teilnehmer
 def get_all_teilnehmer():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(str(DB_PATH))
     df = pd.read_sql_query('SELECT * FROM teilnehmer', conn)
     conn.close()
     return df
 
 # Funktion zum Aktualisieren eines Teilnehmers
 def update_teilnehmer(teilnehmer_id, **kwargs):
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(str(DB_PATH))
     cursor = conn.cursor()
     columns = ', '.join(f"{key} = ?" for key in kwargs)
     values = list(kwargs.values())
@@ -89,7 +93,7 @@ def update_teilnehmer(teilnehmer_id, **kwargs):
 
 # Funktion zum Löschen eines Teilnehmers
 def delete_teilnehmer(teilnehmer_id):
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(str(DB_PATH))
     cursor = conn.cursor()
     cursor.execute('DELETE FROM teilnehmer WHERE teilnehmer_id = ?', (teilnehmer_id,))
     conn.commit()
@@ -103,7 +107,7 @@ def add_test(teilnehmer_id, test_datum, textaufgaben_erreichte_punkte, textaufga
              gleichungen_erreichte_punkte, gleichungen_max_punkte,
              brueche_erreichte_punkte, brueche_max_punkte,
              gesamt_erreichte_punkte, gesamt_max_punkte, gesamt_prozent):
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(str(DB_PATH))
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO tests (
@@ -131,10 +135,33 @@ def add_test(teilnehmer_id, test_datum, textaufgaben_erreichte_punkte, textaufga
 
 # Funktion zum Abrufen von Tests eines Teilnehmers
 def get_tests_by_teilnehmer(teilnehmer_id):
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(str(DB_PATH))
     df = pd.read_sql_query('SELECT * FROM tests WHERE teilnehmer_id = ?', conn, params=(teilnehmer_id,))
     conn.close()
     return df
+
+# Funktion zum Aktualisieren eines Tests
+def update_test(test_id, **kwargs):
+    conn = sqlite3.connect(str(DB_PATH))
+    cursor = conn.cursor()
+    columns = ', '.join(f"{key} = ?" for key in kwargs)
+    values = list(kwargs.values())
+    values.append(test_id)
+    cursor.execute(f'''
+        UPDATE tests
+        SET {columns}
+        WHERE test_id = ?
+    ''', values)
+    conn.commit()
+    conn.close()
+
+# Funktion zum Löschen eines Tests
+def delete_test(test_id):
+    conn = sqlite3.connect(str(DB_PATH))
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM tests WHERE test_id = ?', (test_id,))
+    conn.commit()
+    conn.close()
 
 # Initialisierung der Datenbank beim ersten Import
 init_db()
