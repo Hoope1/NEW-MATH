@@ -4,6 +4,7 @@ import streamlit as st
 from app.db_manager import add_test, get_tests_by_teilnehmer, update_test, delete_test, get_all_teilnehmer
 from app.utils.helper_functions import validate_points, calculate_total_scores, sort_dataframe_by_date, format_date
 import pandas as pd
+from datetime import datetime
 
 def main():
     """
@@ -130,7 +131,7 @@ def main():
                         try:
                             add_test(
                                 teilnehmer_id=selected_id,
-                                test_datum=test_datum.strftime('%Y-%m-%d'),
+                                test_datum=str(test_datum),  # Sicherstellen, dass ein String übergeben wird
                                 textaufgaben_erreichte_punkte=textaufgaben_erreichte_punkte,
                                 textaufgaben_max_punkte=textaufgaben_max_punkte,
                                 raumvorstellung_erreichte_punkte=raumvorstellung_erreichte_punkte,
@@ -175,7 +176,7 @@ def main():
                     "Wählen Sie einen Test aus, um ihn zu bearbeiten oder zu löschen:",
                     df_tests['test_id'],
                     format_func=lambda x: f"Test-ID {x}",
-                    key="edit_test_selectbox"
+                    key="select_test_edit_delete"
                 )
                 selected_test = df_tests[df_tests['test_id'] == selected_test_id].iloc[0]
 
