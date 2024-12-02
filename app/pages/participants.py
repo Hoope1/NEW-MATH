@@ -1,46 +1,71 @@
 # app/pages/participants.py
 
 import streamlit as st
-from app.db_manager import add_teilnehmer, get_all_teilnehmer, update_teilnehmer, delete_teilnehmer
-from app.utils.helper_functions import validate_sv_nummer, validate_dates, calculate_status, format_date
 import pandas as pd
+from datetime import datetime
+from app.db_manager import (
+    add_teilnehmer,
+    get_all_teilnehmer,
+    update_teilnehmer,
+    delete_teilnehmer
+)
+from app.utils.helper_functions import validate_sv_nummer, validate_dates, calculate_status, format_date
+
 
 def main():
+    """
+    Hauptfunktion zur Verwaltung von Teilnehmern:
+    Ermöglicht das Anzeigen, Hinzufügen, Bearbeiten und Löschen von Teilnehmern.
+    """
     st.header("Teilnehmerverwaltung")
-    
-    # Tab-Layout: Übersicht, Hinzufügen, Bearbeiten/Löschen
+
+    # Tabs für die verschiedenen Funktionen
     tabs = st.tabs(["Übersicht", "Teilnehmer hinzufügen", "Teilnehmer bearbeiten/löschen"])
-    
+
+    # Tab 1: Übersicht aller Teilnehmer
     with tabs[0]:
         st.subheader("Alle Teilnehmer")
         df_teilnehmer = get_all_teilnehmer()
+
         if df_teilnehmer.empty:
-            st.info("Keine Teilnehmer vorhanden.")
+            st.info("Keine Teilnehmer vorhanden. Bitte fügen Sie Teilnehmer hinzu.")
         else:
+            # Formatieren und Anzeigen der Teilnehmerdaten
             df_display = df_teilnehmer.copy()
             df_display['eintrittsdatum'] = df_display['eintrittsdatum'].apply(format_date)
-            df_display['austrittsdatum'] = df_display['austrittsdatum'].apply(lambda x: format_date(x) if x else "")
-            st.dataframe(df_display[['teilnehmer_id', 'name', 'sv_nummer', 'geschlecht', 'eintrittsdatum', 'austrittsdatum', 'berufsbezeichnung', 'status']].set_index('teilnehmer_id'))
-    
+            df_display['austrittsdatum'] = df_display['austrittsdatum'].apply(lambda x: format_date(x) if x else "Nicht angegeben")
+            st.dataframe(
+                df_display[[
+                    'teilnehmer_id', 'name', 'sv_nummer', 'geschlecht',
+                    'eintrittsdatum', 'austrittsdatum', 'berufsbezeichnung', 'status'
+                ]].set_index('teilnehmer_id'),
+                use_container_width=True
+            )
+
+    # Tab 2: Teilnehmer hinzufügen
     with tabs[1]:
         st.subheader("Neuen Teilnehmer hinzufügen")
         with st.form("add_participant_form"):
+            # Eingabefelder für Teilnehmerinformationen
             name = st.text_input("Name", max_chars=100)
             sv_nummer = st.text_input("SV-Nummer", max_chars=10)
             geschlecht = st.selectbox("Geschlecht", ["Männlich", "Weiblich", "Divers"])
-            eintrittsdatum = st.date_input("Eintrittsdatum")
+            eintrittsdatum = st.date_input("Eintrittsdatum", value=datetime.now().date())
             austrittsdatum = st.date_input("Austrittsdatum", value=None)
             berufsbezeichnung = st.text_input("Berufsbezeichnung", max_chars=100)
             status = st.selectbox("Status", ["Aktiv", "Inaktiv"])
-            
+
+            # Button zum Speichern
             submitted = st.form_submit_button("Teilnehmer hinzufügen")
+
             if submitted:
+                # Validierung der Eingabedaten
                 if not validate_sv_nummer(sv_nummer):
                     st.error("Die SV-Nummer muss genau 10 Ziffern lang sein.")
-                elif not validate_dates(str(eintrittsdatum), str(austrittsdatum)):
+                elif not validate_dates(str(eintrittsdatum), str(austrittsdatum) if austrittsdatum else None):
                     st.error("Das Austrittsdatum muss größer oder gleich dem Eintrittsdatum sein.")
                 else:
-                    status_calculated = calculate_status(str(austrittsdatum)) if austrittsdatum else 'Aktiv'
+                    status_calculated = calculate_status(str(austrittsdatum) if austrittsdatum else None)
                     try:
                         add_teilnehmer(
                             name=name,
@@ -51,40 +76,66 @@ def main():
                             berufsbezeichnung=berufsbezeichnung,
                             status=status_calculated
                         )
-                        st.success("Teilnehmer erfolgreich hinzugefügt.")
+                        st.success(f"Teilnehmer '{name}' wurde erfolgreich hinzugefügt.")
                     except Exception as e:
                         st.error(f"Fehler beim Hinzufügen des Teilnehmers: {e}")
-    
+
+    # Tab 3: Teilnehmer bearbeiten oder löschen
     with tabs[2]:
         st.subheader("Teilnehmer bearbeiten oder löschen")
         df_teilnehmer = get_all_teilnehmer()
+
         if df_teilnehmer.empty:
-            st.info("Keine Teilnehmer vorhanden.")
+            st.info("Keine Teilnehmer vorhanden. Bitte fügen Sie Teilnehmer hinzu.")
         else:
-            teilnehmer_namen = df_teilnehmer['name'].tolist()
-            selected_name = st.selectbox("Teilnehmer auswählen", teilnehmer_namen)
-            teilnehmer_data = df_teilnehmer[df_teilnehmer['name'] == selected_name].iloc[0]
+            # Auswahl eines Teilnehmers
+            teilnehmer_name = st.selectbox(
+                "Teilnehmer auswählen",
+                df_teilnehmer['name'].tolist()
+            )
+            teilnehmer_data = df_teilnehmer[df_teilnehmer['name'] == teilnehmer_name].iloc[0]
             teilnehmer_id = teilnehmer_data['teilnehmer_id']
-            
+
             st.write(f"**Teilnehmer-ID:** {teilnehmer_id}")
             with st.expander("Teilnehmerdaten bearbeiten"):
                 with st.form("edit_participant_form"):
+                    # Bearbeitungsfelder
                     name = st.text_input("Name", value=teilnehmer_data['name'], max_chars=100)
                     sv_nummer = st.text_input("SV-Nummer", value=teilnehmer_data['sv_nummer'], max_chars=10)
-                    geschlecht = st.selectbox("Geschlecht", ["Männlich", "Weiblich", "Divers"], index=["Männlich", "Weiblich", "Divers"].index(teilnehmer_data['geschlecht']))
-                    eintrittsdatum = st.date_input("Eintrittsdatum", value=pd.to_datetime(teilnehmer_data['eintrittsdatum']))
-                    austrittsdatum = st.date_input("Austrittsdatum", value=pd.to_datetime(teilnehmer_data['austrittsdatum']) if teilnehmer_data['austrittsdatum'] else None)
-                    berufsbezeichnung = st.text_input("Berufsbezeichnung", value=teilnehmer_data['berufsbezeichnung'], max_chars=100)
-                    status = st.selectbox("Status", ["Aktiv", "Inaktiv"], index=["Aktiv", "Inaktiv"].index(teilnehmer_data['status']))
-                    
+                    geschlecht = st.selectbox(
+                        "Geschlecht",
+                        ["Männlich", "Weiblich", "Divers"],
+                        index=["Männlich", "Weiblich", "Divers"].index(teilnehmer_data['geschlecht'])
+                    )
+                    eintrittsdatum = st.date_input(
+                        "Eintrittsdatum",
+                        value=pd.to_datetime(teilnehmer_data['eintrittsdatum'])
+                    )
+                    austrittsdatum = st.date_input(
+                        "Austrittsdatum",
+                        value=pd.to_datetime(teilnehmer_data['austrittsdatum']) if teilnehmer_data['austrittsdatum'] else None
+                    )
+                    berufsbezeichnung = st.text_input(
+                        "Berufsbezeichnung",
+                        value=teilnehmer_data['berufsbezeichnung'], max_chars=100
+                    )
+                    status = st.selectbox(
+                        "Status",
+                        ["Aktiv", "Inaktiv"],
+                        index=["Aktiv", "Inaktiv"].index(teilnehmer_data['status'])
+                    )
+
+                    # Button zum Speichern der Änderungen
                     submitted = st.form_submit_button("Teilnehmer aktualisieren")
+
                     if submitted:
+                        # Validierung der Eingabedaten
                         if not validate_sv_nummer(sv_nummer):
                             st.error("Die SV-Nummer muss genau 10 Ziffern lang sein.")
-                        elif not validate_dates(str(eintrittsdatum), str(austrittsdatum)):
+                        elif not validate_dates(str(eintrittsdatum), str(austrittsdatum) if austrittsdatum else None):
                             st.error("Das Austrittsdatum muss größer oder gleich dem Eintrittsdatum sein.")
                         else:
-                            status_calculated = calculate_status(str(austrittsdatum)) if austrittsdatum else 'Aktiv'
+                            status_calculated = calculate_status(str(austrittsdatum) if austrittsdatum else None)
                             try:
                                 update_teilnehmer(
                                     teilnehmer_id=teilnehmer_id,
@@ -96,14 +147,14 @@ def main():
                                     berufsbezeichnung=berufsbezeichnung,
                                     status=status_calculated
                                 )
-                                st.success("Teilnehmer erfolgreich aktualisiert.")
+                                st.success(f"Teilnehmer '{name}' wurde erfolgreich aktualisiert.")
                             except Exception as e:
                                 st.error(f"Fehler beim Aktualisieren des Teilnehmers: {e}")
-            
+
             with st.expander("Teilnehmer löschen"):
                 if st.button("Teilnehmer löschen"):
                     try:
                         delete_teilnehmer(teilnehmer_id)
-                        st.success("Teilnehmer erfolgreich gelöscht.")
+                        st.success(f"Teilnehmer '{teilnehmer_name}' wurde erfolgreich gelöscht.")
                     except Exception as e:
                         st.error(f"Fehler beim Löschen des Teilnehmers: {e}")
