@@ -1,0 +1,36 @@
+# .streamlit/config.toml
+
+[server]
+# Aktiviert den Headless-Modus, der für die Ausführung auf Streamlit Cloud erforderlich ist
+headless = true
+
+# Setzt den Port auf die von Streamlit Cloud bereitgestellte Umgebungsvariable
+port = $PORT
+
+# Deaktiviert Cross-Origin Resource Sharing (CORS), um CORS-Probleme zu vermeiden
+enableCORS = false
+
+# Setzt den Websocket-Ping-Timeout auf 120 Sekunden, um Verbindungsabbrüche zu verhindern
+websocketPingTimeout = 120
+
+# Setzt den Websocket-Ping-Interval auf 60 Sekunden
+websocketPingInterval = 60
+
+# Verhindert, dass die Anwendung im Browser als Popup angezeigt wird
+browser.gatherUsageStats = false
+
+[theme]
+# Definiert die primäre Farbe der Anwendung (z.B. für Buttons und Links)
+primaryColor = "#1f77b4"
+
+# Definiert die Hintergrundfarbe der Hauptseite
+backgroundColor = "#ffffff"
+
+# Definiert die sekundäre Hintergrundfarbe (z.B. für die Sidebar)
+secondaryBackgroundColor = "#f0f2f6"
+
+# Definiert die Textfarbe der Anwendung
+textColor = "#000000"
+
+# Definiert die Schriftart der Anwendung
+font = "sans serif"
