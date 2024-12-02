@@ -106,7 +106,7 @@ def plot_forecast(df_tests, forecast, teilnehmer_name):
     return fig
 
 def main():
-    st.title("KI-Prognose der Testergebnisse")
+    st.header("KI-Prognose der Testergebnisse")
 
     st.markdown("""
     ### Prognose der zukünftigen Gesamtleistung
@@ -146,7 +146,12 @@ def main():
 
     # Prognose erstellen
     with st.spinner("Erstelle Prognose..."):
-        forecast = create_forecast(df_prophet, periods=30)
+        try:
+            forecast = create_forecast(df_prophet, periods=30)
+            st.success("Prognose erfolgreich erstellt.")
+        except Exception as e:
+            st.error(f"Fehler bei der Erstellung der Prognose: {e}")
+            return
 
     # Visualisierung der Prognose
     fig = plot_forecast(df_tests, forecast, selected_name)
@@ -190,5 +195,3 @@ def main():
     Wenn Sie Verbesserungen oder Anpassungen an der Prognose wünschen, kontaktieren Sie bitte den Administrator.
     """)
 
-if __name__ == "__main__":
-    main()
