@@ -2,7 +2,6 @@
 
 import streamlit as st
 import pandas as pd
-import os
 from datetime import datetime
 from pathlib import Path
 from app.db_manager import get_all_teilnehmer, get_tests_by_teilnehmer
@@ -11,16 +10,18 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from openpyxl import Workbook
 import tempfile
+import os
+
 
 def create_pdf_report(teilnehmer_data, df_tests, avg_last_two):
     """
     Erstellt einen PDF-Bericht für einen Teilnehmer.
-    
+
     Args:
         teilnehmer_data (pandas.Series): Daten des Teilnehmers.
         df_tests (pandas.DataFrame): Testergebnisse des Teilnehmers.
         avg_last_two (float): Durchschnitt der letzten zwei Testergebnisse.
-    
+
     Returns:
         bytes: PDF-Datei als Bytes.
     """
@@ -59,15 +60,16 @@ def create_pdf_report(teilnehmer_data, df_tests, avg_last_two):
     os.unlink(buffer.name)
     return pdf_bytes
 
+
 def create_excel_report(teilnehmer_data, df_tests, avg_last_two):
     """
     Erstellt einen Excel-Bericht für einen Teilnehmer.
-    
+
     Args:
         teilnehmer_data (pandas.Series): Daten des Teilnehmers.
         df_tests (pandas.DataFrame): Testergebnisse des Teilnehmers.
         avg_last_two (float): Durchschnitt der letzten zwei Testergebnisse.
-    
+
     Returns:
         bytes: Excel-Datei als Bytes.
     """
@@ -93,7 +95,7 @@ def create_excel_report(teilnehmer_data, df_tests, avg_last_two):
     ws.append(["Testdatum", "Gesamtprozente"])
     for index, test in df_tests.iterrows():
         ws.append([format_date(test['test_datum']), f"{test['gesamt_prozent']:.2f}%"])
-    
+
     ws.append([])
     ws.append(["Durchschnitt der letzten zwei Tests", f"{avg_last_two:.2f}%"])
 
@@ -105,29 +107,33 @@ def create_excel_report(teilnehmer_data, df_tests, avg_last_two):
     os.unlink(tmp.name)
     return excel_bytes
 
+
 def main():
+    """
+    Hauptfunktion für die Berichterstellung:
+    Erstellt PDF- und Excel-Berichte für Teilnehmer und zeigt eine Übersicht der Testergebnisse.
+    """
     st.header("Berichterstellung")
-    
-    # Abrufen der Teilnehmerliste
+
+    # Teilnehmerdaten abrufen
     df_teilnehmer = get_all_teilnehmer()
     if df_teilnehmer.empty:
         st.warning("Es sind keine Teilnehmer vorhanden. Bitte fügen Sie zuerst Teilnehmer hinzu.")
         return
 
     # Auswahl des Teilnehmers
-    teilnehmer_namen = df_teilnehmer['name'].tolist()
-    selected_name = st.selectbox("Teilnehmer auswählen", teilnehmer_namen)
-    teilnehmer_data = df_teilnehmer[df_teilnehmer['name'] == selected_name].iloc[0]
+    teilnehmer_name = st.selectbox("Teilnehmer auswählen", df_teilnehmer['name'].tolist())
+    teilnehmer_data = df_teilnehmer[df_teilnehmer['name'] == teilnehmer_name].iloc[0]
     teilnehmer_id = teilnehmer_data['teilnehmer_id']
 
-    # Abrufen der Testergebnisse
+    # Testergebnisse abrufen
     df_tests = get_tests_by_teilnehmer(teilnehmer_id)
 
     if df_tests.empty:
         st.info("Keine Testergebnisse für diesen Teilnehmer vorhanden.")
         return
 
-    # Sortieren der Testergebnisse nach Datum
+    # Testergebnisse sortieren
     df_tests = sort_dataframe_by_date(df_tests, 'test_datum')
 
     # Durchschnitt der letzten zwei Tests berechnen
@@ -149,11 +155,12 @@ def main():
                 st.download_button(
                     label="PDF herunterladen",
                     data=pdf_bytes,
-                    file_name=f"{selected_name}_Bericht.pdf",
+                    file_name=f"{teilnehmer_name}_Bericht.pdf",
                     mime="application/pdf"
                 )
             except Exception as e:
                 st.error(f"Fehler beim Erstellen des PDF-Berichts: {e}")
+
     with col2:
         if st.button("Excel-Bericht erstellen"):
             try:
@@ -162,7 +169,7 @@ def main():
                 st.download_button(
                     label="Excel herunterladen",
                     data=excel_bytes,
-                    file_name=f"{selected_name}_Bericht.xlsx",
+                    file_name=f"{teilnehmer_name}_Bericht.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
             except Exception as e:
@@ -170,11 +177,14 @@ def main():
 
     st.markdown("---")
 
-    # Anzeige der Testergebnisse im Detail
+    # Testergebnisse Übersicht
     st.subheader("Testergebnisse Übersicht")
     df_tests_display = df_tests.copy()
     df_tests_display['test_datum'] = df_tests_display['test_datum'].apply(format_date)
-    st.dataframe(df_tests_display[['test_datum', 'gesamt_erreichte_punkte', 'gesamt_max_punkte', 'gesamt_prozent']].set_index('test_datum'))
+    st.dataframe(
+        df_tests_display[['test_datum', 'gesamt_erreichte_punkte', 'gesamt_max_punkte', 'gesamt_prozent']].set_index('test_datum'),
+        use_container_width=True
+    )
 
     st.markdown("---")
 
@@ -186,3 +196,6 @@ def main():
     - **Download:** Nach der Erstellung können die Berichte direkt heruntergeladen werden.
     """)
 
+
+if __name__ == "__main__":
+    main()
