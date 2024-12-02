@@ -2,36 +2,41 @@
 
 import streamlit as st
 import pandas as pd
-import numpy as np
-from datetime import datetime
 from prophet import Prophet
 from app.db_manager import get_all_teilnehmer, get_tests_by_teilnehmer
 from app.utils.helper_functions import sort_dataframe_by_date, format_date
 import plotly.graph_objects as go
 
-# Cache die Teilnehmerliste, um wiederholte Datenbankabfragen zu vermeiden
+
 @st.cache_data
 def load_teilnehmer():
+    """
+    Lädt alle Teilnehmer aus der Datenbank und speichert die Ergebnisse im Cache.
+    """
     return get_all_teilnehmer()
 
-# Cache die Testergebnisse für einen Teilnehmer
+
 @st.cache_data
 def load_tests(teilnehmer_id):
+    """
+    Lädt die Testergebnisse eines Teilnehmers aus der Datenbank und speichert die Ergebnisse im Cache.
+    """
     df_tests = get_tests_by_teilnehmer(teilnehmer_id)
     if not df_tests.empty:
         df_tests = sort_dataframe_by_date(df_tests, 'test_datum')
     return df_tests
 
+
 def create_forecast(df, periods=30):
     """
-    Erstellt eine Prognose mit dem Prophet-Modell.
-    
+    Erstellt eine Prognose der Gesamtleistung mit dem Prophet-Modell.
+
     Args:
-        df (pandas.DataFrame): DataFrame mit den historischen Daten (ds, y).
-        periods (int): Anzahl der zukünftigen Tage für die Prognose.
-    
+        df (pandas.DataFrame): Historische Daten (Spalten: 'ds', 'y').
+        periods (int): Anzahl der Tage, die in die Zukunft prognostiziert werden sollen.
+
     Returns:
-        pandas.DataFrame: DataFrame mit den Prognoseergebnissen.
+        pandas.DataFrame: Prognoseergebnisse mit Spalten: 'ds', 'yhat', 'yhat_lower', 'yhat_upper'.
     """
     model = Prophet()
     model.fit(df)
@@ -39,17 +44,18 @@ def create_forecast(df, periods=30):
     forecast = model.predict(future)
     return forecast
 
+
 def plot_forecast(df_tests, forecast, teilnehmer_name):
     """
     Erstellt ein interaktives Diagramm mit historischen und prognostizierten Daten.
-    
+
     Args:
         df_tests (pandas.DataFrame): Historische Testergebnisse.
-        forecast (pandas.DataFrame): Prognoseergebnisse von Prophet.
+        forecast (pandas.DataFrame): Prognoseergebnisse.
         teilnehmer_name (str): Name des Teilnehmers.
-    
+
     Returns:
-        plotly.graph_objects.Figure: Das erstellte Diagramm.
+        plotly.graph_objects.Figure: Erstelltes Diagramm.
     """
     fig = go.Figure()
 
@@ -76,19 +82,17 @@ def plot_forecast(df_tests, forecast, teilnehmer_name):
         x=forecast['ds'],
         y=forecast['yhat_upper'],
         mode='lines',
-        name='Prognose (Obergrenze)',
-        line=dict(dash='dot', color='green'),
-        showlegend=True
+        name='Prognose Obergrenze',
+        line=dict(dash='dot', color='green')
     ))
     fig.add_trace(go.Scatter(
         x=forecast['ds'],
         y=forecast['yhat_lower'],
         mode='lines',
-        name='Prognose (Untergrenze)',
+        name='Prognose Untergrenze',
         line=dict(dash='dot', color='red'),
         fill='tonexty',
-        fillcolor='rgba(255, 0, 0, 0.1)',
-        showlegend=True
+        fillcolor='rgba(255, 0, 0, 0.1)'
     ))
 
     # Diagramm-Layout
@@ -105,43 +109,50 @@ def plot_forecast(df_tests, forecast, teilnehmer_name):
 
     return fig
 
+
 def main():
+    """
+    Hauptfunktion für die KI-Prognose:
+    Prognostiziert die Gesamtleistung eines Teilnehmers basierend auf historischen Daten.
+    """
     st.header("KI-Prognose der Testergebnisse")
 
     st.markdown("""
     ### Prognose der zukünftigen Gesamtleistung
-    Wählen Sie einen Teilnehmer aus, um eine 30-Tage-Prognose der Gesamtleistung zu sehen. Die Prognose basiert auf den historischen Testergebnissen und zeigt die erwarteten Werte mit Unsicherheitsbereichen.
+    Wählen Sie einen Teilnehmer aus, um eine 30-Tage-Prognose der Gesamtleistung zu sehen.
+    Die Prognose basiert auf den historischen Testergebnissen und zeigt die erwarteten Werte
+    mit Unsicherheitsbereichen.
     """)
 
-    # Abrufen der Teilnehmerliste
+    # Teilnehmerdaten abrufen
     df_teilnehmer = load_teilnehmer()
     if df_teilnehmer.empty:
         st.warning("Es sind keine Teilnehmer vorhanden. Bitte fügen Sie zuerst Teilnehmer hinzu.")
         return
 
     # Auswahl des Teilnehmers
-    teilnehmer_namen = df_teilnehmer['name'].tolist()
-    selected_name = st.selectbox("Teilnehmer auswählen", teilnehmer_namen)
-    teilnehmer_data = df_teilnehmer[df_teilnehmer['name'] == selected_name].iloc[0]
+    teilnehmer_name = st.selectbox("Teilnehmer auswählen", df_teilnehmer['name'].tolist())
+    teilnehmer_data = df_teilnehmer[df_teilnehmer['name'] == teilnehmer_name].iloc[0]
     teilnehmer_id = teilnehmer_data['teilnehmer_id']
 
-    # Abrufen der Testergebnisse
+    # Testergebnisse abrufen
     df_tests = load_tests(teilnehmer_id)
 
     if df_tests.empty:
         st.info("Keine Testergebnisse für diesen Teilnehmer vorhanden.")
         return
 
-    # Sortieren der Testergebnisse nach Datum
+    # Sortieren der Testergebnisse
     df_tests = sort_dataframe_by_date(df_tests, 'test_datum')
 
-    # Überprüfen, ob genügend Datenpunkte vorhanden sind
     if len(df_tests) < 2:
         st.warning("Nicht genügend Datenpunkte für eine zuverlässige Prognose. Fügen Sie mindestens zwei Testergebnisse hinzu.")
         return
 
     # Daten für Prophet vorbereiten
-    df_prophet = df_tests[['test_datum', 'gesamt_prozent']].rename(columns={'test_datum': 'ds', 'gesamt_prozent': 'y'})
+    df_prophet = df_tests[['test_datum', 'gesamt_prozent']].rename(columns={
+        'test_datum': 'ds', 'gesamt_prozent': 'y'
+    })
     df_prophet['ds'] = pd.to_datetime(df_prophet['ds'])
 
     # Prognose erstellen
@@ -154,7 +165,7 @@ def main():
             return
 
     # Visualisierung der Prognose
-    fig = plot_forecast(df_tests, forecast, selected_name)
+    fig = plot_forecast(df_tests, forecast, teilnehmer_name)
     st.plotly_chart(fig, use_container_width=True)
 
     st.markdown("---")
@@ -172,7 +183,7 @@ def main():
     st.download_button(
         label="Prognose als CSV herunterladen",
         data=forecast_display.to_csv(index=False).encode('utf-8'),
-        file_name=f"{selected_name}_Prognose.csv",
+        file_name=f"{teilnehmer_name}_Prognose.csv",
         mime="text/csv"
     )
 
@@ -187,11 +198,6 @@ def main():
     - **Interaktivität:** Bewegen Sie den Mauszeiger über die Datenpunkte, um detaillierte Informationen anzuzeigen.
     """)
 
-    st.markdown("---")
 
-    # Anpassungen und Feedback
-    st.markdown("""
-    ### Feedback und Anpassungen
-    Wenn Sie Verbesserungen oder Anpassungen an der Prognose wünschen, kontaktieren Sie bitte den Administrator.
-    """)
-
+if __name__ == "__main__":
+    main()
