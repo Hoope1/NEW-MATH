@@ -1,129 +1,76 @@
-# app/pages/calculations.py
-
 import streamlit as st
+from app.db_manager import get_tests_by_teilnehmer
+from app.utils.helper_functions import sort_dataframe_by_date
 import pandas as pd
-from app.db_manager import get_all_teilnehmer, get_tests_by_teilnehmer
-from app.utils.helper_functions import sort_dataframe_by_date, format_date
-
-def calculate_average_total(df_tests):
-    """
-    Berechnet die durchschnittliche Gesamtleistung eines Teilnehmers.
-
-    Args:
-        df_tests (pandas.DataFrame): DataFrame mit Testergebnissen.
-
-    Returns:
-        float: Durchschnittliche Gesamtleistung in Prozent.
-    """
-    if df_tests.empty:
-        return 0.0
-    return df_tests['gesamt_prozent'].mean()
 
 def main():
     """
-    Hauptfunktion zur Berechnung:
-    Bietet Statistiken und Analysen für Teilnehmer und ihre Testergebnisse.
+    Hauptfunktion für automatische Berechnungen und Validierung.
+    Bietet Statistiken und Kennzahlen auf Basis der Testdaten.
     """
     st.header("Automatische Berechnungen und Validierung")
-
     st.markdown("""
-    ### Übersicht der Berechnungen
-    - **Durchschnittliche Gesamtleistung** pro Teilnehmer.
-    - **Beste und schlechteste Testergebnisse**.
-    - **Leistungsentwicklung** über die Zeit.
-    - **Kategorische Analyse** der erreichten Punkte.
+        In diesem Bereich können Sie die statistischen Berechnungen und Kennzahlen 
+        zu den Testdaten der Teilnehmer einsehen. Wählen Sie einen Teilnehmer aus, 
+        um die Ergebnisse anzuzeigen.
     """)
 
-    # Teilnehmerdaten abrufen
-    df_teilnehmer = get_all_teilnehmer()
-    if df_teilnehmer.empty:
-        st.warning("Es sind keine Teilnehmer vorhanden. Bitte fügen Sie zuerst Teilnehmer hinzu.")
+    teilnehmer_data = get_all_teilnehmer()
+    
+    if teilnehmer_data.empty:
+        st.info("Keine Teilnehmerdaten vorhanden. Bitte fügen Sie Teilnehmer hinzu.")
         return
 
-    # Teilnehmerauswahl
-    teilnehmer_namen = df_teilnehmer['name'].tolist()
-    selected_name = st.selectbox("Teilnehmer auswählen für detaillierte Berechnungen:", teilnehmer_namen, key="calculations_selectbox")
-    teilnehmer_data = df_teilnehmer[df_teilnehmer['name'] == selected_name].iloc[0]
-    teilnehmer_id = teilnehmer_data['teilnehmer_id']
+    selected_id = st.selectbox(
+        "Wählen Sie einen Teilnehmer aus:",
+        teilnehmer_data['teilnehmer_id'],
+        format_func=lambda x: teilnehmer_data[teilnehmer_data['teilnehmer_id'] == x]['name'].values[0],
+        key="select_participant"
+    )
 
-    # Testergebnisse abrufen
-    df_tests = get_tests_by_teilnehmer(teilnehmer_id)
-
+    df_tests = get_tests_by_teilnehmer(selected_id)
+    
     if df_tests.empty:
-        st.info("Keine Testergebnisse für diesen Teilnehmer vorhanden.")
-    else:
-        # Testergebnisse sortieren
-        df_tests = sort_dataframe_by_date(df_tests, 'test_datum')
+        st.info("Keine Testdaten für diesen Teilnehmer vorhanden.")
+        return
 
-        # Übersicht der Testergebnisse
-        st.subheader("Testergebnisse Übersicht")
-        df_display = df_tests.copy()
-        df_display['test_datum'] = df_display['test_datum'].apply(format_date)
-        st.dataframe(df_display[['test_id', 'test_datum', 'gesamt_erreichte_punkte', 'gesamt_max_punkte', 'gesamt_prozent']].set_index('test_id'))
+    # Sortiere Testdaten
+    df_tests_sorted = sort_dataframe_by_date(df_tests, "test_datum")
 
-        # Berechnungen
-        st.subheader("Berechnungen")
+    # Berechnungen
+    st.subheader("Statistische Analysen")
 
-        durchschnitt = calculate_average_total(df_tests)
-        st.metric(label="Durchschnittliche Gesamtleistung", value=f"{durchschnitt:.2f}%")
+    # Durchschnittliche Prozente
+    avg_percent = df_tests_sorted['gesamt_prozent'].mean()
+    st.metric(label="Durchschnittliche Testergebnisse (%)", value=f"{avg_percent:.2f}")
 
-        best_test = df_tests.loc[df_tests['gesamt_prozent'].idxmax()]
-        worst_test = df_tests.loc[df_tests['gesamt_prozent'].idxmin()]
-        st.write(f"**Bestes Testergebnis:** {format_date(best_test['test_datum'])} mit {best_test['gesamt_prozent']:.2f}%")
-        st.write(f"**Schlechtestes Testergebnis:** {format_date(worst_test['test_datum'])} mit {worst_test['gesamt_prozent']:.2f}%")
+    # Maximaler und minimaler Prozentsatz
+    max_percent = df_tests_sorted['gesamt_prozent'].max()
+    min_percent = df_tests_sorted['gesamt_prozent'].min()
+    st.metric(label="Höchstes Testergebnis (%)", value=f"{max_percent:.2f}")
+    st.metric(label="Niedrigstes Testergebnis (%)", value=f"{min_percent:.2f}")
 
-        # Leistungsentwicklung über die Zeit
-        st.subheader("Leistungsentwicklung über die Zeit")
-        st.line_chart(df_tests.set_index('test_datum')['gesamt_prozent'])
+    # Durchschnitt pro Kategorie
+    categories = [
+        "textaufgaben", "raumvorstellung", "grundrechenarten",
+        "zahlenraum", "gleichungen", "brueche"
+    ]
+    st.subheader("Durchschnittliche Ergebnisse pro Kategorie (%)")
+    avg_categories = {}
+    for category in categories:
+        avg_categories[category] = (df_tests_sorted[f"{category}_erreichte_punkte"] /
+                                    df_tests_sorted[f"{category}_max_punkte"] * 100).mean()
+        st.metric(label=f"{category.capitalize()} (%)", value=f"{avg_categories[category]:.2f}")
 
-        # Kategorische Analyse
-        st.subheader("Kategorische Analyse der erreichten Punkte")
-        categories = ['textaufgaben', 'raumvorstellung', 'grundrechenarten', 'zahlenraum', 'gleichungen', 'brueche']
-        category_means = {category: df_tests[f"{category}_erreichte_punkte"].mean() for category in categories}
-        category_max = {category: df_tests[f"{category}_max_punkte"].mean() for category in categories}
-        category_percentages = {category: (category_means[category] / category_max[category]) * 100 if category_max[category] > 0 else 0 for category in categories}
+    # Gesamtstatistik-Tabelle
+    st.subheader("Gesamtstatistik")
+    df_stats = df_tests_sorted[['test_datum', 'gesamt_erreichte_punkte', 'gesamt_max_punkte', 'gesamt_prozent']].copy()
+    df_stats['test_datum'] = df_stats['test_datum'].apply(lambda x: x.strftime('%d.%m.%Y'))
+    st.dataframe(df_stats, use_container_width=True)
 
-        df_category = pd.DataFrame({
-            'Kategorie': list(category_percentages.keys()),
-            'Durchschnittliche Prozentwerte': list(category_percentages.values())
-        })
-
-        st.bar_chart(df_category.set_index('Kategorie'))
-
-    # Allgemeine Statistiken
-    st.markdown("---")
-    st.subheader("Allgemeine Statistiken")
-    if st.checkbox("Allgemeine Statistiken anzeigen"):
-        all_teilnehmer_ids = df_teilnehmer['teilnehmer_id'].tolist()
-        all_tests = pd.concat([get_tests_by_teilnehmer(t_id) for t_id in all_teilnehmer_ids if not get_tests_by_teilnehmer(t_id).empty])
-
-        if all_tests.empty:
-            st.info("Keine Testergebnisse vorhanden.")
-        else:
-            st.markdown("#### Gesamtanzahl der Tests")
-            total_tests = all_tests.shape[0]
-            st.metric(label="Gesamtanzahl der Tests", value=total_tests)
-
-            st.markdown("#### Durchschnittliche Punkte pro Kategorie")
-            categories = ['textaufgaben', 'raumvorstellung', 'grundrechenarten', 'zahlenraum', 'gleichungen', 'brueche']
-            avg_points = {category: all_tests[f"{category}_erreichte_punkte"].mean() for category in categories}
-            avg_max_points = {category: all_tests[f"{category}_max_punkte"].mean() for category in categories}
-            avg_percentages = {category: (avg_points[category] / avg_max_points[category]) * 100 if avg_max_points[category] > 0 else 0 for category in categories}
-
-            df_avg = pd.DataFrame({
-                'Kategorie': list(avg_percentages.keys()),
-                'Durchschnittliche Prozentwerte': list(avg_percentages.values())
-            })
-
-            st.bar_chart(df_avg.set_index('Kategorie'))
-
-            st.markdown("#### Gesamtsumme der Punkte")
-            total_erreicht = all_tests['gesamt_erreichte_punkte'].sum()
-            total_max = all_tests['gesamt_max_punkte'].sum()
-            overall_percentage = (total_erreicht / total_max) * 100 if total_max > 0 else 0
-            st.metric(label="Gesamt erreichte Punkte", value=total_erreicht)
-            st.metric(label="Gesamt maximale Punkte", value=total_max)
-            st.metric(label="Gesamter Prozentwert", value=f"{overall_percentage:.2f}%")
+    # Graphische Darstellung
+    st.subheader("Visualisierung der Testergebnisse")
+    st.line_chart(data=df_tests_sorted.set_index("test_datum")["gesamt_prozent"])
 
 if __name__ == "__main__":
     main()
