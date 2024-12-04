@@ -1,160 +1,75 @@
-# app/pages/visualization.py
-
 import streamlit as st
+from app.db_manager import get_tests_by_teilnehmer, get_all_teilnehmer
 import pandas as pd
-import plotly.graph_objects as go
-from app.db_manager import get_all_teilnehmer, get_tests_by_teilnehmer
-from app.utils.helper_functions import sort_dataframe_by_date, format_date
-
-@st.cache_data
-def load_teilnehmer():
-    """
-    Lädt alle Teilnehmer aus der Datenbank und speichert die Ergebnisse im Cache.
-    """
-    return get_all_teilnehmer()
-
-@st.cache_data
-def load_tests(teilnehmer_id):
-    """
-    Lädt die Testergebnisse eines Teilnehmers aus der Datenbank und speichert die Ergebnisse im Cache.
-    """
-    df_tests = get_tests_by_teilnehmer(teilnehmer_id)
-    if not df_tests.empty:
-        df_tests = sort_dataframe_by_date(df_tests, 'test_datum')
-    return df_tests
-
-def plot_performance(df_tests, teilnehmer_name):
-    """
-    Erstellt ein interaktives Diagramm der Gesamt- und Kategorieleistung eines Teilnehmers.
-
-    Args:
-        df_tests (pandas.DataFrame): DataFrame mit Testergebnissen.
-        teilnehmer_name (str): Name des Teilnehmers.
-
-    Returns:
-        plotly.graph_objects.Figure: Das erstellte Diagramm.
-    """
-    if df_tests.empty:
-        return None
-
-    test_dates = pd.to_datetime(df_tests['test_datum'])
-    overall_scores = df_tests['gesamt_prozent']
-
-    # Kategorien
-    categories = ['textaufgaben', 'raumvorstellung', 'grundrechenarten', 'zahlenraum', 'gleichungen', 'brueche']
-    category_scores = {category: df_tests[f"{category}_erreichte_punkte"] / df_tests[f"{category}_max_punkte"] * 100 for category in categories}
-
-    fig = go.Figure()
-
-    # Gesamtleistung
-    fig.add_trace(go.Scatter(
-        x=test_dates,
-        y=overall_scores,
-        mode='lines+markers',
-        name='Gesamtleistung',
-        line=dict(color='black', width=2)
-    ))
-
-    # Kategorien hinzufügen
-    colors = ['blue', 'green', 'red', 'orange', 'purple', 'brown']
-    for idx, category in enumerate(categories):
-        fig.add_trace(go.Scatter(
-            x=test_dates,
-            y=category_scores[category],
-            mode='lines+markers',
-            name=category.capitalize(),
-            line=dict(dash='dot', color=colors[idx], width=1.5)
-        ))
-
-    # Diagramm-Layout
-    fig.update_layout(
-        title=f"Leistungsentwicklung von {teilnehmer_name}",
-        xaxis_title="Datum",
-        yaxis_title="Prozentwerte",
-        xaxis=dict(type="date"),
-        yaxis=dict(range=[0, 100]),
-        legend_title="Kategorien",
-        template="plotly_white",
-        hovermode="x unified"
-    )
-
-    return fig
+import matplotlib.pyplot as plt
 
 def main():
     """
-    Hauptfunktion zur Datenvisualisierung:
-    Zeigt interaktive Diagramme für die Testergebnisse eines Teilnehmers an.
+    Hauptfunktion zur Visualisierung der Testergebnisse.
+    Bietet interaktive Diagramme zur Analyse der Fortschritte der Teilnehmer.
     """
-    st.header("Datenvisualisierung der Testergebnisse")
+    st.header("Visualisierung der Testergebnisse")
+    st.markdown("""
+        In diesem Bereich können Sie die Fortschritte der Teilnehmer visualisieren. 
+        Wählen Sie einen Teilnehmer aus, um detaillierte Diagramme zu sehen.
+    """)
 
-    # Teilnehmerdaten abrufen
-    df_teilnehmer = load_teilnehmer()
-    if df_teilnehmer.empty:
-        st.warning("Es sind keine Teilnehmer vorhanden. Bitte fügen Sie zuerst Teilnehmer hinzu.")
+    # Teilnehmerauswahl
+    teilnehmer_data = get_all_teilnehmer()
+    
+    if teilnehmer_data.empty:
+        st.info("Keine Teilnehmerdaten vorhanden. Bitte fügen Sie Teilnehmer hinzu.")
         return
 
-    # Auswahl des Teilnehmers
-    teilnehmer_namen = df_teilnehmer['name'].tolist()
-    selected_name = st.selectbox("Teilnehmer auswählen:", teilnehmer_namen, key="visualization_selectbox")
-    teilnehmer_data = df_teilnehmer[df_teilnehmer['name'] == selected_name].iloc[0]
-    teilnehmer_id = teilnehmer_data['teilnehmer_id']
+    selected_id = st.selectbox(
+        "Wählen Sie einen Teilnehmer aus:",
+        teilnehmer_data['teilnehmer_id'],
+        format_func=lambda x: teilnehmer_data[teilnehmer_data['teilnehmer_id'] == x]['name'].values[0],
+        key="select_visualization_participant"
+    )
 
-    # Testergebnisse abrufen
-    df_tests = load_tests(teilnehmer_id)
+    df_tests = get_tests_by_teilnehmer(selected_id)
 
     if df_tests.empty:
-        st.info("Keine Testergebnisse für diesen Teilnehmer vorhanden.")
-    else:
-        # Diagramm erstellen
-        fig = plot_performance(df_tests, selected_name)
-        if fig:
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("Nicht genügend Daten für die Visualisierung.")
+        st.info("Keine Testdaten für diesen Teilnehmer vorhanden.")
+        return
 
-        st.markdown("---")
+    # Datenvorbereitung
+    df_tests_sorted = df_tests.sort_values(by="test_datum")
+    df_tests_sorted['test_datum'] = pd.to_datetime(df_tests_sorted['test_datum'])
+    df_tests_sorted.set_index('test_datum', inplace=True)
 
-        # Erweiterte Filteroptionen
-        st.subheader("Erweiterte Filteroptionen")
-        with st.expander("Filter anwenden"):
-            min_date = df_tests['test_datum'].min()
-            max_date = df_tests['test_datum'].max()
-            start_date = st.date_input("Startdatum:", pd.to_datetime(min_date), key="filter_start_date")
-            end_date = st.date_input("Enddatum:", pd.to_datetime(max_date), key="filter_end_date")
+    # Diagrammoptionen
+    st.subheader("Diagrammoptionen")
+    show_categories = st.checkbox("Einzelne Kategorien anzeigen", value=False)
 
-            if start_date > end_date:
-                st.error("Das Startdatum darf nicht nach dem Enddatum liegen.")
-            else:
-                # Filtern der Daten
-                mask = (pd.to_datetime(df_tests['test_datum']) >= pd.to_datetime(start_date)) & \
-                       (pd.to_datetime(df_tests['test_datum']) <= pd.to_datetime(end_date))
-                filtered_df = df_tests[mask]
+    # Visualisierung: Gesamtprozentwerte
+    st.subheader("Fortschritt der Gesamtprozentwerte")
+    plt.figure(figsize=(10, 6))
+    plt.plot(df_tests_sorted.index, df_tests_sorted['gesamt_prozent'], marker='o', label='Gesamtprozent')
+    plt.xlabel("Datum")
+    plt.ylabel("Prozent (%)")
+    plt.title("Gesamtprozentwerte über die Zeit")
+    plt.legend()
+    st.pyplot(plt)
 
-                if filtered_df.empty:
-                    st.warning("Keine Testergebnisse in diesem Zeitraum gefunden.")
-                else:
-                    fig_filtered = plot_performance(filtered_df, selected_name)
-                    if fig_filtered:
-                        st.plotly_chart(fig_filtered, use_container_width=True)
-                    else:
-                        st.info("Nicht genügend Daten für die Visualisierung.")
-
-    st.markdown("---")
-
-    # Allgemeine Hinweise zur Visualisierung
-    st.markdown("""
-    ### Hinweise zur Visualisierung
-    - **Gesamtleistung:** Die schwarze Linie zeigt die Gesamtleistung des Teilnehmers über die Zeit.
-    - **Kategorieleistung:** Die farbigen gestrichelten Linien repräsentieren die Leistung in den einzelnen Kategorien:
-      - **Textaufgaben**
-      - **Raumvorstellung**
-      - **Grundrechenarten**
-      - **Zahlenraum**
-      - **Gleichungen**
-      - **Brüche**
-    - **Interaktivität:** Bewegen Sie den Mauszeiger über die Datenpunkte, um detaillierte Informationen anzuzeigen.
-    - **Filter:** Verwenden Sie die erweiterten Filteroptionen, um die Visualisierung auf einen bestimmten Zeitraum zu beschränken.
-    """)
+    # Visualisierung: Kategorien (optional)
+    if show_categories:
+        st.subheader("Fortschritt in einzelnen Kategorien")
+        categories = [
+            "textaufgaben", "raumvorstellung", "grundrechenarten",
+            "zahlenraum", "gleichungen", "brueche"
+        ]
+        plt.figure(figsize=(10, 6))
+        for category in categories:
+            category_percent = (df_tests_sorted[f"{category}_erreichte_punkte"] /
+                                df_tests_sorted[f"{category}_max_punkte"] * 100)
+            plt.plot(df_tests_sorted.index, category_percent, marker='o', label=category.capitalize())
+        plt.xlabel("Datum")
+        plt.ylabel("Prozent (%)")
+        plt.title("Fortschritt in den Kategorien")
+        plt.legend()
+        st.pyplot(plt)
 
 if __name__ == "__main__":
     main()
