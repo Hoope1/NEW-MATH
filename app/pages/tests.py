@@ -7,12 +7,7 @@ from datetime import datetime
 def main():
     """
     Hauptfunktion für die Verwaltung von Testdaten.
-    Bietet Tabs für:
-    - Übersicht
-    - Test hinzufügen
-    - Test bearbeiten/löschen
     """
-
     st.header("Testdateneingabe und -verwaltung")
 
     # Tabs erstellen
