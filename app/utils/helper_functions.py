@@ -1,15 +1,11 @@
-# app/utils/helper_functions.py
-
 import pandas as pd
 from datetime import datetime
 
 def validate_sv_nummer(sv_nummer):
     """
     Überprüft, ob die SV-Nummer genau 10 Zeichen lang ist und nur aus Ziffern besteht.
-
     Args:
         sv_nummer (str): Die zu überprüfende SV-Nummer.
-
     Returns:
         bool: True, wenn die SV-Nummer gültig ist, sonst False.
     """
@@ -18,11 +14,9 @@ def validate_sv_nummer(sv_nummer):
 def validate_dates(eintrittsdatum, austrittsdatum=None):
     """
     Überprüft, ob das Austrittsdatum größer oder gleich dem Eintrittsdatum ist.
-
     Args:
         eintrittsdatum (str): Eintrittsdatum im Format 'YYYY-MM-DD'.
         austrittsdatum (str): Austrittsdatum im Format 'YYYY-MM-DD' oder None.
-
     Returns:
         bool: True, wenn die Daten gültig sind, sonst False.
     """
@@ -38,10 +32,8 @@ def validate_dates(eintrittsdatum, austrittsdatum=None):
 def calculate_status(austrittsdatum):
     """
     Berechnet den Status ('Aktiv' oder 'Inaktiv') basierend auf dem Austrittsdatum.
-
     Args:
         austrittsdatum (str): Austrittsdatum im Format 'YYYY-MM-DD' oder None.
-
     Returns:
         str: 'Aktiv' oder 'Inaktiv'
     """
@@ -54,10 +46,8 @@ def calculate_status(austrittsdatum):
 def validate_points(points_dict):
     """
     Überprüft, ob alle Punktewerte vorhanden und gültig sind.
-
     Args:
         points_dict (dict): Dictionary mit Punktenamen als Schlüssel und Punktwerten als Werte.
-
     Returns:
         bool: True, wenn alle Punkte gültig sind, sonst False.
     """
@@ -69,10 +59,8 @@ def validate_points(points_dict):
 def calculate_total_scores(points_dict):
     """
     Berechnet die Gesamtpunkte und den Gesamtprozentsatz basierend auf den erreichten und maximalen Punkten.
-
     Args:
         points_dict (dict): Dictionary mit Kategorien und ihren erreichten und maximalen Punkten.
-
     Returns:
         tuple: (gesamt_erreichte_punkte, gesamt_max_punkte, gesamt_prozent)
     """
@@ -87,10 +75,8 @@ def calculate_total_scores(points_dict):
 def format_date(date_str):
     """
     Formatiert ein Datum von 'YYYY-MM-DD' zu 'DD.MM.YYYY'.
-
     Args:
         date_str (str): Datum im Format 'YYYY-MM-DD'.
-
     Returns:
         str: Datum im Format 'DD.MM.YYYY'.
     """
@@ -103,13 +89,27 @@ def format_date(date_str):
 def sort_dataframe_by_date(df, date_column):
     """
     Sortiert einen DataFrame nach einem Datumsspaltenwert.
-
     Args:
         df (pandas.DataFrame): Der zu sortierende DataFrame.
         date_column (str): Der Name der Datumsspalte.
-
     Returns:
         pandas.DataFrame: Sortierter DataFrame.
     """
     df[date_column] = pd.to_datetime(df[date_column])
     return df.sort_values(by=date_column)
+
+def calculate_age(sv_nummer):
+    """
+    Berechnet das Alter basierend auf der SV-Nummer im Format 'XXXXDDMMYY'.
+    Args:
+        sv_nummer (str): Sozialversicherungsnummer des Teilnehmers.
+    Returns:
+        int: Alter in Jahren.
+    """
+    try:
+        birth_date = datetime.strptime(sv_nummer[-6:], '%d%m%y')
+        today = datetime.now()
+        age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+        return age
+    except ValueError:
+        return None
