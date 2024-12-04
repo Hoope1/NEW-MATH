@@ -12,23 +12,23 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 def get_db_connection():
     """
     Erstellt und cached eine SQLite-Datenbankverbindung.
-    Verwendet In-Memory-Datenbank für Streamlit Cloud-Kompatibilität.
+    Verwendet `check_same_thread=False`, um Nutzung in mehreren Threads zu ermöglichen.
     """
     try:
-        # In-Memory-Modus für Streamlit Cloud
-        conn = sqlite3.connect("file:streamlit_app.db?mode=memory&cache=shared", uri=True)
+        conn = sqlite3.connect("file:streamlit_app.db?mode=memory&cache=shared", uri=True, check_same_thread=False)
         logging.info("Datenbankverbindung erfolgreich hergestellt.")
         return conn
     except sqlite3.Error as e:
         logging.error(f"Fehler beim Herstellen der Datenbankverbindung: {e}")
         raise e
 
-def init_db(conn):
+def init_db():
     """
     Initialisiert die SQLite-Datenbank:
     Erstellt die Tabellen 'teilnehmer' und 'tests', falls sie nicht existieren.
     """
     try:
+        conn = get_db_connection()
         cursor = conn.cursor()
 
         # Tabelle für Teilnehmer
@@ -75,6 +75,8 @@ def init_db(conn):
     except sqlite3.Error as e:
         logging.error(f"Fehler beim Initialisieren der Datenbank: {e}")
         raise e
+    finally:
+        conn.close()
 
 # CRUD-Funktionen
 def add_teilnehmer(name, sv_nummer, geschlecht, eintrittsdatum, austrittsdatum, berufsbezeichnung, status):
@@ -148,5 +150,4 @@ def delete_teilnehmer(teilnehmer_id):
         conn.close()
 
 # Initialisierung der Datenbank
-conn = get_db_connection()
-init_db(conn)
+init_db()
