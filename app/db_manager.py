@@ -76,6 +76,77 @@ def init_db(conn):
         logging.error(f"Fehler beim Initialisieren der Datenbank: {e}")
         raise e
 
-# Initialisierung bei App-Start
+# CRUD-Funktionen
+def add_teilnehmer(name, sv_nummer, geschlecht, eintrittsdatum, austrittsdatum, berufsbezeichnung, status):
+    """
+    Fügt einen neuen Teilnehmer in die Datenbank ein.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            INSERT INTO teilnehmer (name, sv_nummer, geschlecht, eintrittsdatum, austrittsdatum, berufsbezeichnung, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (name, sv_nummer, geschlecht, eintrittsdatum, austrittsdatum, berufsbezeichnung, status))
+        conn.commit()
+        logging.info(f"Teilnehmer {name} erfolgreich hinzugefügt.")
+    except sqlite3.Error as e:
+        logging.error(f"Fehler beim Hinzufügen des Teilnehmers {name}: {e}")
+        raise e
+    finally:
+        conn.close()
+
+def get_all_teilnehmer():
+    """
+    Ruft alle Teilnehmer aus der Datenbank ab.
+    """
+    conn = get_db_connection()
+    try:
+        query = "SELECT * FROM teilnehmer"
+        df = pd.read_sql_query(query, conn)
+        return df
+    except sqlite3.Error as e:
+        logging.error(f"Fehler beim Abrufen der Teilnehmer: {e}")
+        raise e
+    finally:
+        conn.close()
+
+def update_teilnehmer(teilnehmer_id, name, sv_nummer, geschlecht, eintrittsdatum, austrittsdatum, berufsbezeichnung, status):
+    """
+    Aktualisiert die Daten eines vorhandenen Teilnehmers.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            UPDATE teilnehmer
+            SET name = ?, sv_nummer = ?, geschlecht = ?, eintrittsdatum = ?, austrittsdatum = ?, berufsbezeichnung = ?, status = ?
+            WHERE teilnehmer_id = ?
+        ''', (name, sv_nummer, geschlecht, eintrittsdatum, austrittsdatum, berufsbezeichnung, status, teilnehmer_id))
+        conn.commit()
+        logging.info(f"Teilnehmer {name} erfolgreich aktualisiert.")
+    except sqlite3.Error as e:
+        logging.error(f"Fehler beim Aktualisieren des Teilnehmers {name}: {e}")
+        raise e
+    finally:
+        conn.close()
+
+def delete_teilnehmer(teilnehmer_id):
+    """
+    Löscht einen Teilnehmer aus der Datenbank.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('DELETE FROM teilnehmer WHERE teilnehmer_id = ?', (teilnehmer_id,))
+        conn.commit()
+        logging.info(f"Teilnehmer mit ID {teilnehmer_id} erfolgreich gelöscht.")
+    except sqlite3.Error as e:
+        logging.error(f"Fehler beim Löschen des Teilnehmers mit ID {teilnehmer_id}: {e}")
+        raise e
+    finally:
+        conn.close()
+
+# Initialisierung der Datenbank
 conn = get_db_connection()
 init_db(conn)
